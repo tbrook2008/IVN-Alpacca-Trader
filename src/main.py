@@ -61,12 +61,22 @@ def main():
                     logger.warning(f"Insufficient Buying Power. Required: ${estimated_cost:.2f}, Available: ${buying_power:.2f}. Halting trade.")
                     continue
                 if direction == "BUY":
-                    logger.info(f"Executing Bullish Options Trade (Calls) - Size: {size}")
-                    # order_manager.execute_options_trade("SPY", "CALL", qty=size)
+                    logger.info(f"Executing Bullish Equity Trade (Shares) - Size: {size}")
+                    try:
+                        from alpaca.trading.enums import OrderSide
+                        order_manager.submit_market_order_equity("SPY", qty=size, side=OrderSide.BUY)
+                        logger.info("✅ BUY Order successfully submitted to Alpaca.")
+                    except Exception as e:
+                        logger.error(f"Failed to route BUY order: {e}")
                     
                 elif direction == "SELL":
-                    logger.info(f"Executing Bearish Options Trade (Puts) - Size: {size}")
-                    # order_manager.execute_options_trade("SPY", "PUT", qty=size)
+                    logger.info(f"Executing Bearish Equity Trade (Shares) - Size: {size}")
+                    try:
+                        from alpaca.trading.enums import OrderSide
+                        order_manager.submit_market_order_equity("SPY", qty=size, side=OrderSide.SELL)
+                        logger.info("✅ SELL Order successfully submitted to Alpaca.")
+                    except Exception as e:
+                        logger.error(f"Failed to route SELL order: {e}")
             
             # Sleep to prevent rate limit hitting on polling
             time.sleep(60)
