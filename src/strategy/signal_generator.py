@@ -47,8 +47,8 @@ class SignalGenerator:
         for lvn in lvns:
             if abs(current_price - lvn) <= threshold:
                 # We are at a key level. Check volume.
-                # Assuming 'current_volume' is the 1-minute volume. If it's over a certain spike threshold:
-                if current_volume > volume_profile.df['volume'].mean() * 2:
+                # Optimized Backtest Params: 1.2x Volume Spike
+                if current_volume > volume_profile.df['volume'].mean() * 1.2:
                     # Reversal signal
                     # POC is the max volume node
                     poc = volume_profile.profile.loc[volume_profile.profile['volume'].idxmax(), 'price']

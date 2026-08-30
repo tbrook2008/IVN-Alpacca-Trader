@@ -13,7 +13,8 @@ PAPER_TRADING = os.getenv("PAPER_TRADING", "True").lower() in ("true", "1", "yes
 BASE_URL = "https://paper-api.alpaca.markets" if PAPER_TRADING else "https://api.alpaca.markets"
 
 # Trading Constants
-SYMBOLS = [sym.strip() for sym in os.getenv("SYMBOLS", "SPY,QQQ").split(",")]
+# Defaulted to the basket that successfully passed the 2-year 60%+ win rate threshold
+SYMBOLS = [sym.strip() for sym in os.getenv("SYMBOLS", "SPY,AAPL,IWM,NVDA").split(",")]
 MAX_LOSS_PER_TRADE_USD = float(os.getenv("MAX_LOSS_PER_TRADE_USD", "500"))
 MAX_POSITIONS = int(os.getenv("MAX_POSITIONS", "2"))
 
