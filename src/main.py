@@ -1,0 +1,69 @@
+import time
+import logging
+from src.config import validate_config
+from src.data.market_data import MarketDataFetcher
+from src.strategy.volume_profile import VolumeProfile
+from src.strategy.signal_generator import SignalGenerator
+from src.execution.order_manager import OrderManager
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+def main():
+    validate_config()
+    logger.info("Initializing IVN Alpaca Trading Agent...")
+
+    # Initialize Modules
+    data_fetcher = MarketDataFetcher()
+    order_manager = OrderManager()
+    signal_gen = SignalGenerator()
+    
+    # 1. Build Morning Profile
+    logger.info("Fetching historical data for Volume Profile...")
+    df = data_fetcher.fetch_historical_bars("SPY", days_back=5)
+    
+    profile = VolumeProfile(df)
+    result = profile.calculate()
+    
+    poc = profile.profile.loc[profile.profile['volume'].idxmax(), 'price']
+    logger.info(f"Volume Profile POC: {poc}")
+    logger.info(f"LVNs (Support/Resistance): {profile.lvn}")
+
+    # 2. Main Trading Loop
+    logger.info("Starting real-time monitoring loop...")
+    
+    try:
+        while True:
+            # In a real streaming scenario, this would be websocket driven.
+            # For hackathon daemon, we simulate streaming by polling latest bar.
+            latest_bar = data_fetcher.get_latest_bar("SPY")
+            current_price = latest_bar['close']
+            current_volume = latest_bar['volume']
+
+            # Update risk metrics from broker
+            positions = order_manager.get_open_positions()
+            # daily_pnl logic here (simplified for demo)
+            signal_gen.update_risk_metrics(len(positions), 0.0)
+
+            # Analyze for 'Turns'
+            signal = signal_gen.analyze_price_action(current_price, current_volume, profile)
+            
+            if signal == "BUY":
+                logger.info("Executing Bullish Options Trade (Calls)")
+                # Execute ATM Call logic here
+                # order_manager.execute_options_trade("SPY", "CALL")
+                
+            elif signal == "SELL":
+                logger.info("Executing Bearish Options Trade (Puts)")
+                # Execute ATM Put logic here
+                # order_manager.execute_options_trade("SPY", "PUT")
+            
+            # Sleep to prevent rate limit hitting on polling
+            time.sleep(60)
+
+    except KeyboardInterrupt:
+        logger.info("Agent shutting down. Closing all positions to avoid overnight risk.")
+        order_manager.close_all_positions()
+
+if __name__ == "__main__":
+    main()
