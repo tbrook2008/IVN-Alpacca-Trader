@@ -24,66 +24,76 @@ def main():
     order_manager = OrderManager()
     signal_gen = SignalGenerator()
     
-    # 1. Build Morning Profile
-    logger.info("Fetching historical data for Volume Profile...")
-    df = data_fetcher.fetch_historical_bars("SPY", days_back=5)
-    
-    profile = VolumeProfile(df)
-    result = profile.calculate()
-    
-    poc = profile.profile.loc[profile.profile['volume'].idxmax(), 'price']
-    logger.info(f"Volume Profile POC: {poc}")
-    logger.info(f"LVNs (Support/Resistance): {profile.lvn}")
+    # 1. Build Morning Profiles for all symbols
+    logger.info("Fetching historical data for Volume Profiles...")
+    profiles = {}
+    for symbol in config.SYMBOLS:
+        try:
+            df = data_fetcher.fetch_historical_bars(symbol, days=5)
+            profile = VolumeProfile(df)
+            profile.calculate()
+            profiles[symbol] = profile
+            poc = profile.profile.loc[profile.profile['volume'].idxmax(), 'price']
+            logger.info(f"[{symbol}] POC: {poc} | LVNs: {profile.lvn}")
+        except Exception as e:
+            logger.error(f"Failed to build profile for {symbol}: {e}")
 
     # 2. Main Trading Loop
-    logger.info("Starting real-time monitoring loop...")
+    logger.info("Starting real-time monitoring loop for symbols: " + ", ".join(config.SYMBOLS))
     
     try:
         while True:
-            # In a real streaming scenario, this would be websocket driven.
-            # For hackathon daemon, we simulate streaming by polling latest bar.
-            latest_bar = data_fetcher.get_latest_bar("SPY")
-            current_price = latest_bar['close']
-            current_volume = latest_bar['volume']
-
-            # Update risk metrics from broker
-            positions = order_manager.get_open_positions()
-            account = order_manager.client.get_account() if hasattr(order_manager, 'client') else None
-            buying_power = float(account.buying_power) if account else 100000.0
-            
-            # daily_pnl logic here (simplified for demo)
-            signal_gen.update_risk_metrics(len(positions), 0.0)
-
-            # Analyze for 'Turns'
-            signal = signal_gen.analyze_price_action(current_price, current_volume, profile)
-            
-            if signal:
-                direction = signal["direction"]
-                size = signal["size"]
+            for symbol in config.SYMBOLS:
+                if symbol not in profiles: continue
+                profile = profiles[symbol]
+                latest_bar = data_fetcher.get_latest_bar(symbol)
+                if latest_bar is None: continue
                 
-                # Check Buying Power before routing order
-                estimated_cost = current_price * size
-                if estimated_cost > buying_power * 0.9:
-                    logger.warning(f"Insufficient Buying Power. Required: ${estimated_cost:.2f}, Available: ${buying_power:.2f}. Halting trade.")
-                    continue
-                if direction == "BUY":
-                    logger.info(f"Executing Bullish Equity Trade (Shares) - Size: {size}")
-                    try:
-                        from alpaca.trading.enums import OrderSide
-                        order_manager.submit_market_order_equity("SPY", qty=size, side=OrderSide.BUY)
-                        logger.info("✅ BUY Order successfully submitted to Alpaca.")
-                    except Exception as e:
-                        logger.error(f"Failed to route BUY order: {e}")
+                current_price = latest_bar['close']
+                current_volume = latest_bar['volume']
+
+                # Update risk metrics from broker
+                positions = order_manager.get_open_positions()
+                account = order_manager.client.get_account() if hasattr(order_manager, 'client') else None
+                buying_power = float(account.buying_power) if account else 100000.0
+                
+                signal_gen.update_risk_metrics(len(positions), 0.0)
+
+                # Analyze for 'Turns'
+                signal = signal_gen.analyze_price_action(current_price, current_volume, profile)
+                
+                if signal:
+                    direction = signal["direction"]
+                    size = signal["size"]
                     
-                elif direction == "SELL":
-                    logger.info(f"Executing Bearish Equity Trade (Shares) - Size: {size}")
-                    try:
-                        from alpaca.trading.enums import OrderSide
-                        order_manager.submit_market_order_equity("SPY", qty=size, side=OrderSide.SELL)
-                        logger.info("✅ SELL Order successfully submitted to Alpaca.")
-                    except Exception as e:
-                        logger.error(f"Failed to route SELL order: {e}")
-            
+                    # Check Buying Power
+                    estimated_cost = current_price * size
+                    if estimated_cost > buying_power * 0.9:
+                        logger.warning(f"[{symbol}] Insufficient Buying Power. Required: ${estimated_cost:.2f}, Available: ${buying_power:.2f}. Halting trade.")
+                        continue
+                        
+                    if direction == "BUY":
+                        logger.info(f"[{symbol}] Executing Bullish Trades - Size: {size}")
+                        # 1. Equity Trade
+                        try:
+                            from alpaca.trading.enums import OrderSide
+                            order_manager.submit_market_order_equity(symbol, qty=size, side=OrderSide.BUY)
+                        except Exception as e:
+                            logger.error(f"Equity route failed: {e}")
+                        # 2. Options Trade (Hackathon Requirement)
+                        order_manager.execute_options_trade(symbol, "CALL", qty=size)
+                        
+                    elif direction == "SELL":
+                        logger.info(f"[{symbol}] Executing Bearish Trades - Size: {size}")
+                        # 1. Equity Short Trade
+                        try:
+                            from alpaca.trading.enums import OrderSide
+                            order_manager.submit_market_order_equity(symbol, qty=size, side=OrderSide.SELL)
+                        except Exception as e:
+                            logger.error(f"Equity route failed: {e}")
+                        # 2. Options Trade (Buy PUT instead of shorting to avoid naked shorts)
+                        order_manager.execute_options_trade(symbol, "PUT", qty=size)
+                
             # Sleep to prevent rate limit hitting on polling
             time.sleep(60)
 
