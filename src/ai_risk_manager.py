@@ -81,8 +81,20 @@ NEUTRAL (Market is normal, allow standard technical trading)
                 temperature=0.1,
                 max_tokens=20
             )
-            decision = response.choices[0].message.content.strip().upper()
             
+            # Log the raw response so we can debug if needed
+            logger.info(f"Raw LLM Response: {response}")
+            
+            content = ""
+            if hasattr(response, 'choices') and response.choices:
+                content = getattr(response.choices[0].message, 'content', '')
+            elif isinstance(response, dict) and response.get('choices'):
+                content = response['choices'][0].get('message', {}).get('content', '')
+            else:
+                content = str(response)
+                
+            decision = str(content).strip().upper()
+                
             # Ensure it strictly matches our Enums
             if "BULLISH" in decision: return "BULLISH_AGGRESSIVE"
             if "BEARISH" in decision: return "BEARISH_CAUTIOUS"
