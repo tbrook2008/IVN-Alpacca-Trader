@@ -16,12 +16,12 @@ class VolumeProfile:
         
     def calculate(self):
         # Use Typical Price if High and Low are present, else just Close
-        if 'High' in self.df.columns and 'Low' in self.df.columns and 'Close' in self.df.columns:
-            prices = (self.df['High'] + self.df['Low'] + self.df['Close']) / 3
+        if 'high' in self.df.columns and 'low' in self.df.columns and 'close' in self.df.columns:
+            prices = (self.df['high'] + self.df['low'] + self.df['close']) / 3
         else:
-            prices = self.df['Close']
+            prices = self.df['close']
             
-        volumes = self.df['Volume']
+        volumes = self.df['volume']
         
         # Calculate volume profile histogram
         hist, bin_edges = np.histogram(prices, bins=self.bins, weights=volumes)

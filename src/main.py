@@ -42,21 +42,31 @@ def main():
 
             # Update risk metrics from broker
             positions = order_manager.get_open_positions()
+            account = order_manager.client.get_account() if hasattr(order_manager, 'client') else None
+            buying_power = float(account.buying_power) if account else 100000.0
+            
             # daily_pnl logic here (simplified for demo)
             signal_gen.update_risk_metrics(len(positions), 0.0)
 
             # Analyze for 'Turns'
             signal = signal_gen.analyze_price_action(current_price, current_volume, profile)
             
-            if signal == "BUY":
-                logger.info("Executing Bullish Options Trade (Calls)")
-                # Execute ATM Call logic here
-                # order_manager.execute_options_trade("SPY", "CALL")
+            if signal:
+                direction = signal["direction"]
+                size = signal["size"]
                 
-            elif signal == "SELL":
-                logger.info("Executing Bearish Options Trade (Puts)")
-                # Execute ATM Put logic here
-                # order_manager.execute_options_trade("SPY", "PUT")
+                # Check Buying Power before routing order
+                estimated_cost = current_price * size
+                if estimated_cost > buying_power * 0.9:
+                    logger.warning(f"Insufficient Buying Power. Required: ${estimated_cost:.2f}, Available: ${buying_power:.2f}. Halting trade.")
+                    continue
+                if direction == "BUY":
+                    logger.info(f"Executing Bullish Options Trade (Calls) - Size: {size}")
+                    # order_manager.execute_options_trade("SPY", "CALL", qty=size)
+                    
+                elif direction == "SELL":
+                    logger.info(f"Executing Bearish Options Trade (Puts) - Size: {size}")
+                    # order_manager.execute_options_trade("SPY", "PUT", qty=size)
             
             # Sleep to prevent rate limit hitting on polling
             time.sleep(60)

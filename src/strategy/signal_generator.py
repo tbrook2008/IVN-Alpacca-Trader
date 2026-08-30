@@ -15,6 +15,7 @@ class SignalGenerator:
         """
         Analyzes the current price against the Volume Profile Supply/Demand zones (LVNs).
         If the price hits an LVN and volume spikes, we have a 'turn'.
+        It also reads the latest AI Market Regime state to adjust or veto the trade.
         """
         if self.daily_pnl <= -self.daily_loss_limit:
             logger.warning("Daily Loss Limit hit. Trading halted.")
@@ -22,6 +23,17 @@ class SignalGenerator:
 
         if self.active_positions >= MAX_POSITIONS:
             return None
+            
+        # Read AI Risk State (0 ms latency)
+        ai_state = "NEUTRAL"
+        state_file = os.path.join(os.path.dirname(__file__), '..', '..', 'ai_sentiment_state.json')
+        if os.path.exists(state_file):
+            try:
+                import json
+                with open(state_file, "r") as f:
+                    ai_state = json.load(f).get("regime", "NEUTRAL")
+            except Exception:
+                pass
 
         # Look for the nearest Low Volume Node (Support/Resistance)
         lvns = volume_profile.lvn
@@ -36,18 +48,26 @@ class SignalGenerator:
             if abs(current_price - lvn) <= threshold:
                 # We are at a key level. Check volume.
                 # Assuming 'current_volume' is the 1-minute volume. If it's over a certain spike threshold:
-                if current_volume > volume_profile.profile['volume'].mean() * 2:
+                if current_volume > volume_profile.df['volume'].mean() * 2:
                     # Reversal signal
                     # POC is the max volume node
                     poc = volume_profile.profile.loc[volume_profile.profile['volume'].idxmax(), 'price']
                     if current_price > poc:
                         # Resistance rejection -> Bearish
-                        logger.info(f"Rejection at LVN {lvn:.2f}. Bearish turn detected.")
-                        return "SELL"
+                        if ai_state == "BULLISH_AGGRESSIVE":
+                            logger.info(f"AI VETO: Ignoring Bearish turn at {lvn:.2f} due to BULLISH macro news.")
+                            return None
+                        size = 4 if ai_state == "BEARISH_CAUTIOUS" else 1
+                        logger.info(f"Rejection at LVN {lvn:.2f}. Bearish turn detected. AI Size: {size}")
+                        return {"direction": "SELL", "size": size}
                     else:
                         # Support bounce -> Bullish
-                        logger.info(f"Bounce at LVN {lvn:.2f}. Bullish turn detected.")
-                        return "BUY"
+                        if ai_state == "BEARISH_CAUTIOUS":
+                            logger.info(f"AI VETO: Ignoring Bullish turn at {lvn:.2f} due to BEARISH macro news.")
+                            return None
+                        size = 4 if ai_state == "BULLISH_AGGRESSIVE" else 1
+                        logger.info(f"Bounce at LVN {lvn:.2f}. Bullish turn detected. AI Size: {size}")
+                        return {"direction": "BUY", "size": size}
 
         return None
 

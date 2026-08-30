@@ -4,11 +4,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # API Keys
-ALPACA_API_KEY = os.getenv("ALPACA_API_KEY", "")
-ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY", "")
+ALPACA_API_KEY = os.getenv("ALPACA_API_KEY")
+ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
+FEATHERLESS_API_KEY = os.getenv("FEATHERLESS_API_KEY")
 
 # Paper Trading Mode
-PAPER_TRADING = os.getenv("PAPER_TRADING", "True").lower() == "true"
+PAPER_TRADING = os.getenv("PAPER_TRADING", "True").lower() in ("true", "1", "yes")
 BASE_URL = "https://paper-api.alpaca.markets" if PAPER_TRADING else "https://api.alpaca.markets"
 
 # Trading Constants
