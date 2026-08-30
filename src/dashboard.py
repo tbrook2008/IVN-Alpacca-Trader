@@ -1,6 +1,12 @@
 import streamlit as st
+import pandas as pd
 import json
 import os
+import sys
+
+# Add project root to path so 'src' can be resolved
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from alpaca.trading.client import TradingClient
 from src.config import ALPACA_API_KEY, ALPACA_SECRET_KEY, PAPER_TRADING
 
