@@ -1,4 +1,5 @@
 import logging
+import os
 from src.strategy.volume_profile import VolumeProfile
 from src.config import MAX_LOSS_PER_TRADE_USD, MAX_POSITIONS
 
