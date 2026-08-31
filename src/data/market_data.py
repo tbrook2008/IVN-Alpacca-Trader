@@ -35,3 +35,29 @@ class MarketDataFetcher:
         # Depending on alpaca-py version, getting the active options chain:
         chain = self.option_client.get_option_chain(request_params)
         return chain
+
+    def get_latest_bar(self, symbol: str):
+        """Fetch the most recent 1-minute historical bar."""
+        # Free tier requires at least 15 min delay
+        end_time = datetime.utcnow() - timedelta(minutes=16)
+        start_time = end_time - timedelta(minutes=30)
+        
+        request_params = StockBarsRequest(
+            symbol_or_symbols=symbol,
+            timeframe=TimeFrame.Minute,
+            start=start_time,
+            end=end_time,
+            limit=1
+        )
+        try:
+            bars = self.stock_client.get_stock_bars(request_params)
+            df = bars.df
+            if not df.empty:
+                latest = df.iloc[-1]
+                return {
+                    'close': float(latest['close']),
+                    'volume': int(latest['volume'])
+                }
+        except Exception:
+            pass
+        return None
