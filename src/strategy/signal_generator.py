@@ -1,3 +1,4 @@
+import os
 import logging
 import os
 from src.strategy.volume_profile import VolumeProfile

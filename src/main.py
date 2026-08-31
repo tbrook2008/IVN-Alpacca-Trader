@@ -63,9 +63,9 @@ def main():
                 # Analyze for 'Turns'
                 signal = signal_gen.analyze_price_action(current_price, current_volume, profile)
                 
-                if signal:
-                    direction = signal["direction"]
-                    size = signal["size"]
+                if signal and isinstance(signal, dict):
+                    direction = signal.get("direction")
+                    size = signal.get("size", 1)
                     
                     # Check Buying Power
                     estimated_cost = current_price * size
@@ -75,25 +75,25 @@ def main():
                         
                     if direction == "BUY":
                         logger.info(f"[{symbol}] Executing Bullish Trades - Size: {size}")
-                        # 1. Equity Trade
+                        # 1. Equity Trade (with Bracket OCO)
                         try:
                             from alpaca.trading.enums import OrderSide
-                            order_manager.submit_market_order_equity(symbol, qty=size, side=OrderSide.BUY)
+                            order_manager.submit_market_order_equity(symbol, qty=size, side=OrderSide.BUY, current_price=current_price)
                         except Exception as e:
                             logger.error(f"Equity route failed: {e}")
-                        # 2. Options Trade (Hackathon Requirement)
-                        order_manager.execute_options_trade(symbol, "CALL", qty=size)
+                        # 2. Options Trade (Target ATM)
+                        order_manager.execute_options_trade(symbol, "CALL", qty=size, current_underlying_price=current_price)
                         
                     elif direction == "SELL":
                         logger.info(f"[{symbol}] Executing Bearish Trades - Size: {size}")
-                        # 1. Equity Short Trade
+                        # 1. Equity Short Trade (with Bracket OCO)
                         try:
                             from alpaca.trading.enums import OrderSide
-                            order_manager.submit_market_order_equity(symbol, qty=size, side=OrderSide.SELL)
+                            order_manager.submit_market_order_equity(symbol, qty=size, side=OrderSide.SELL, current_price=current_price)
                         except Exception as e:
                             logger.error(f"Equity route failed: {e}")
-                        # 2. Options Trade (Buy PUT instead of shorting to avoid naked shorts)
-                        order_manager.execute_options_trade(symbol, "PUT", qty=size)
+                        # 2. Options Trade (Buy PUT to avoid naked shorts)
+                        order_manager.execute_options_trade(symbol, "PUT", qty=size, current_underlying_price=current_price)
                 
             # Sleep to prevent rate limit hitting on polling
             time.sleep(60)

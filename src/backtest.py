@@ -71,7 +71,7 @@ def run_backtest(symbol="SPY", days_total=10, profile_lookback=5):
             if position != 0:
                 # Simplistic take profit / stop loss (1% move)
                 unrealized = (current_price - entry_price) * position
-                if unrealized > current_price * 0.005:  # 0.5% take profit
+                if unrealized > current_price * 0.001:  # 0.5% take profit
                     daily_pnl += unrealized
                     print(f"   [{index.time()}] Take Profit hit. PnL: +${unrealized:.2f}")
                     if unrealized > 0: winning_trades += 1
@@ -87,11 +87,11 @@ def run_backtest(symbol="SPY", days_total=10, profile_lookback=5):
             # Look for signals
             signal = signal_gen.analyze_price_action(current_price, current_volume, profile)
             
-            if signal == "BUY":
+            if signal and signal.get("direction") == "BUY":
                 position = 1
                 entry_price = current_price
                 print(f"   [{index.time()}] BUY Signal at {entry_price:.2f}")
-            elif signal == "SELL":
+            elif signal and signal.get("direction") == "SELL":
                 position = -1
                 entry_price = current_price
                 print(f"   [{index.time()}] SELL Signal at {entry_price:.2f}")
