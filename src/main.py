@@ -11,6 +11,7 @@ from src.config import validate_config
 from src.data.market_data import MarketDataFetcher
 from src.strategy.volume_profile import VolumeProfile
 from src.strategy.signal_generator import SignalGenerator
+from src.strategy.economic_calendar import EconomicCalendar
 from src.execution.order_manager import OrderManager
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -24,6 +25,8 @@ def main():
     data_fetcher = MarketDataFetcher()
     order_manager = OrderManager()
     signal_gen = SignalGenerator()
+    econ_calendar = EconomicCalendar()
+    econ_calendar.fetch_events()
     
     # 1. Build Morning Profiles for all symbols
     logger.info("Fetching historical data for Volume Profiles...")
@@ -71,6 +74,12 @@ def main():
                     estimated_cost = current_price * size
                     if estimated_cost > buying_power * 0.9:
                         logger.warning(f"[{symbol}] Insufficient Buying Power. Required: ${estimated_cost:.2f}, Available: ${buying_power:.2f}. Halting trade.")
+                        continue
+                        
+                    # Check Economic Calendar Blackout
+                    is_blackout, event_title = econ_calendar.is_news_blackout()
+                    if is_blackout:
+                        logger.warning(f"[{symbol}] Trade vetoed due to High-Impact News Blackout: {event_title}")
                         continue
                         
                     if direction == "BUY":

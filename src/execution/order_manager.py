@@ -91,16 +91,46 @@ class OrderManager:
                 
             logger.info(f"Selected ATM Options Contract: {atm_contract} (Underlying: {current_underlying_price})")
             
-            # Submit the order (Options usually don't support full brackets in Alpaca standard tier, so we use a simple Market Order)
+            # We buy the Call or Buy the Put (no naked shorts)
+            # High win-rate scalp parameters: we need an estimated premium to set TP/SL
+            # Since we use MarketOrders, we will set a wider TP/SL on options or just use the underlying price proxy if we don't have the quote.
+            # Actually, without the option's current quote, brackets on the option price are hard to calculate accurately.
+            # Let's fetch the latest quote for the option to set the brackets!
+            try:
+                # Alpaca-py options snapshot
+                from alpaca.data.requests import OptionSnapshotRequest
+                from alpaca.data.historical.option import OptionHistoricalDataClient
+                opt_client = OptionHistoricalDataClient(ALPACA_API_KEY, ALPACA_SECRET_KEY)
+                snap_req = OptionSnapshotRequest(symbol_or_symbols=atm_contract)
+                snap = opt_client.get_option_snapshot(snap_req)
+                
+                # Get the latest bid/ask midpoint
+                if atm_contract in snap and snap[atm_contract].latest_quote:
+                    opt_quote = snap[atm_contract].latest_quote
+                    opt_price = (opt_quote.ask_price + opt_quote.bid_price) / 2
+                else:
+                    opt_price = 1.0 # fallback
+                    
+            except Exception as e:
+                logger.warning(f"Could not get option quote, using fallback price: {e}")
+                opt_price = 1.0
+                
+            # Options are more volatile, so we use 10% TP, 20% SL as a proxy for the 0.1% underlying move
+            tp_price = opt_price * 1.10
+            sl_price = opt_price * 0.80
+            
             req = MarketOrderRequest(
                 symbol=atm_contract,
                 qty=qty,
-                side=OrderSide.BUY, # We buy the Call or Buy the Put (no naked shorts)
-                time_in_force=TimeInForce.DAY
+                side=OrderSide.BUY,
+                time_in_force=TimeInForce.DAY,
+                order_class=OrderClass.BRACKET,
+                take_profit=TakeProfitRequest(limit_price=round(tp_price, 2)),
+                stop_loss=StopLossRequest(stop_price=round(sl_price, 2))
             )
             
             res = self.client.submit_order(order_data=req)
-            logger.info(f"✅ Options Order submitted: {atm_contract}")
+            logger.info(f"✅ Options Bracket Order submitted: {atm_contract}")
             return res
             
         except Exception as e:

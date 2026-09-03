@@ -109,8 +109,10 @@ NEUTRAL (Market is normal, allow standard technical trading)
             "regime": sentiment,
             "last_updated": datetime.now().isoformat()
         }
-        with open(STATE_FILE, "w") as f:
+        tmp_file = STATE_FILE + ".tmp"
+        with open(tmp_file, "w") as f:
             json.dump(state, f)
+        os.replace(tmp_file, STATE_FILE) # Atomic swap on POSIX
         logger.info(f"Updated AI Global Risk State to: {sentiment}")
 
     def run_daemon(self, interval_seconds=300):
